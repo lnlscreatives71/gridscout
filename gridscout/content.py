@@ -96,6 +96,11 @@ def assemble(findings, drafts, out_dir):
     os.makedirs(out_dir, exist_ok=True)
     pages_dir = os.path.join(out_dir, "service-area-pages")
     os.makedirs(pages_dir, exist_ok=True)
+    # clear stale drafts from a previous run so a refresh leaves a clean set and
+    # never mixes old copy in with new
+    for old in os.listdir(pages_dir):
+        if old.endswith(".md"):
+            os.remove(os.path.join(pages_dir, old))
     written = []
 
     for page in drafts.get("pages", []):
