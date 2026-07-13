@@ -77,6 +77,27 @@ def cmd_analyze(a):
     print(f"\n  saved: {base}.md\n")
 
 
+def cmd_content(a):
+    from . import content
+    analysis = _load_analysis(a.scan_id)
+    m = analysis["meta"]
+    if not analysis["weak_zones"]:
+        print("\n  No weak zones in this scan. Nothing to draft. You are strong "
+              "across the whole grid.\n")
+        return
+    out_dir = os.path.join(OUT, f"{_slug(m['business'])}-{m['scan_id']}-content")
+    use_geo = not a.no_geo
+    if use_geo:
+        print("  resolving real place names for the weak zones "
+              "(OpenStreetMap, a few seconds)...")
+    manifest = content.generate(analysis, out_dir, use_geo=use_geo)
+    print(f"\n  Drafts for {m['business']} written to {out_dir}\n")
+    for f in manifest["files"]:
+        print(f"    {f}")
+    print(f"\n  Zones covered: {', '.join(manifest['area_labels'])}")
+    print("  Nothing was published. Review, add your local detail, then post.\n")
+
+
 def cmd_history(a):
     con = store.connect()
     rows = store.history(con, a.business, a.keyword)
@@ -110,6 +131,13 @@ def main():
     an.add_argument("scan_id", type=int, nargs="?", default=None,
                     help="scan id (default: latest)")
     an.set_defaults(func=cmd_analyze)
+
+    c = sub.add_parser("content", help="draft service-area pages, GBP posts, schema")
+    c.add_argument("scan_id", type=int, nargs="?", default=None,
+                   help="scan id (default: latest)")
+    c.add_argument("--no-geo", action="store_true",
+                   help="skip OpenStreetMap lookups, use directional names only")
+    c.set_defaults(func=cmd_content)
 
     h = sub.add_parser("history", help="rank history for a business + keyword")
     h.add_argument("--business", required=True)

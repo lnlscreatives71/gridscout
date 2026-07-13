@@ -94,27 +94,28 @@ def _save_cache(cache):
         pass
 
 
-def reverse_geocode(lat, lng, timeout=8):
-    """Best-effort neighborhood/suburb/town name for a coordinate, or None.
+def reverse_details(lat, lng, timeout=8):
+    """Best-effort real address parts for a coordinate, or {} on any failure.
 
     Uses OpenStreetMap's Nominatim, which is keyless. Cached on disk and rate
-    limited to respect their usage policy. Returns None on any failure so callers
-    can fall back to a directional description.
+    limited to respect their usage policy. Returns a dict that may contain
+    'neighborhood', 'road', 'city', 'postcode'. Empty dict means offline or
+    blocked, and callers fall back to directional language.
     """
     key = f"{lat:.4f},{lng:.4f}"
     cache = _load_cache()
     if key in cache:
-        return cache[key] or None
+        return cache[key] or {}
 
     params = urllib.parse.urlencode({
         "lat": f"{lat:.6f}", "lon": f"{lng:.6f}", "format": "jsonv2",
-        "zoom": "14", "addressdetails": "1",
+        "zoom": "16", "addressdetails": "1",
     })
     url = f"https://nominatim.openstreetmap.org/reverse?{params}"
     req = urllib.request.Request(url, headers={
         "User-Agent": "gridscout/1.0 (local SEO grid tool)",
     })
-    name = None
+    out = {}
     try:
         time.sleep(1.0)  # Nominatim asks for <= 1 request per second
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -123,11 +124,25 @@ def reverse_geocode(lat, lng, timeout=8):
         for field in ("neighbourhood", "suburb", "quarter", "city_district",
                       "hamlet", "village", "town", "borough"):
             if addr.get(field):
-                name = addr[field]
+                out["neighborhood"] = addr[field]
                 break
+        if addr.get("road"):
+            out["road"] = addr["road"]
+        for field in ("city", "town", "village", "municipality", "county"):
+            if addr.get(field):
+                out["city"] = addr[field]
+                break
+        if addr.get("postcode"):
+            out["postcode"] = addr["postcode"]
     except Exception:
-        name = None
+        out = {}
 
-    cache[key] = name or ""
+    cache[key] = out
     _save_cache(cache)
-    return name
+    return out
+
+
+def reverse_geocode(lat, lng, timeout=8):
+    """Best-effort neighborhood/suburb/town name for a coordinate, or None."""
+    d = reverse_details(lat, lng, timeout=timeout)
+    return d.get("neighborhood") or d.get("city")
