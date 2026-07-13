@@ -135,40 +135,42 @@ def _call(user_prompt, max_tokens):
 
 
 def write_analysis(findings):
-    """The AI Ranking Coach writeup, in plain owner-facing language.
+    """Prospect-facing pitch copy for the sales report. Its job is to make the
+    business owner feel how many customers they are losing and want a specialist
+    to fix it. It deliberately does not hand over the how-to.
 
     Returns (markdown, usage, model)."""
     prompt = (
-        "Here is the findings file for a scan of one business:\n\n"
+        "Here is the findings file for a scan of a prospect's business:\n\n"
         "```json\n" + json.dumps(findings, indent=2) + "\n```\n\n"
-        "Write a short, plain-English report the owner will understand and act on. "
-        "Follow every rule in your instructions, especially the plain-language ones. "
-        "Use Markdown with these sections:\n\n"
+        "Write the prospect-facing copy for a sales report. The reader is the business "
+        "owner. The goal is to make them see how much visibility and how many customers "
+        "they are losing, and want to hire a local search specialist to fix it. Follow "
+        "every rule in your instructions, especially the plain-language ones. Use "
+        "Markdown with these sections:\n\n"
         "1. A one-line '# ' title with the business name and what people searched for.\n"
         "2. **The bottom line** (2 to 4 sentences). Lead with the reach: how far from "
         "their shop they actually show up, using the reach figures, and say plainly "
-        "that beyond that distance the people searching are finding a competitor "
-        "instead. Make clear the area where they do not show up is not a few scattered "
-        "spots, it is everything past that edge, the whole rest of the city and every "
-        "customer in it. If the reach is short, say so directly. This is the headline "
-        "and it should land as a real problem, not a neutral fact.\n"
-        "3. **Where people find you, and where they don't.** Name the neighborhoods and "
-        "directions where they show up near the top, and the ones where they do not "
-        "show up at all. Note where the edge of their visibility is closest in (the "
-        "weakest direction) versus farthest out.\n"
-        "4. **Who shows up instead.** Name the specific competitors winning the areas "
-        "they are missing.\n"
-        "5. **Why.** Separate the part that is just distance (which they cannot change) "
-        "from the specific things they can fix. Use the real gap numbers (reviews, "
-        "photos, and so on) in plain terms.\n"
-        "6. **What to do**, in order of what will help most, plain and specific.\n\n"
-        "Do not add a closing section about limits or the ceiling. End on the actions. "
-        "Keep the honesty rule in force throughout the body: never imply the business "
-        "can show up everywhere or beat distance, just do not write a separate "
-        "wrap-up paragraph about it.\n"
-        "Return only the Markdown."
+        "that beyond that edge, the whole rest of the area and every customer in it, "
+        "the people searching are finding a competitor instead. Make the loss land.\n"
+        "3. **Where you are invisible, and who is getting those customers.** Name the "
+        "neighborhoods they do not show up in and the specific competitors winning "
+        "them.\n"
+        "4. **What this is costing you.** In plain terms, the searches and calls going "
+        "to competitors every day across the area they cannot reach right now.\n"
+        "5. **The opportunity.** State plainly that this is fixable. Their reach can be "
+        "pushed outward with sustained, expert local search work, and be honest that it "
+        "is skilled, ongoing work that gets real results when done right. End on the "
+        "upside of getting it done and being the business those searchers find.\n\n"
+        "Critical: do NOT tell the reader how to fix it themselves. No steps, no "
+        "checklist, no how-to, no specific tactics they could run alone. You may say in "
+        "general terms that reviews, a complete active profile, and real local pages "
+        "matter, but never explain how to do any of it. This is a pitch, not a manual. "
+        "Do not include a closing section about limits. Keep the honesty rule in force: "
+        "never imply they can show up everywhere or beat physical distance. Return only "
+        "the Markdown."
     )
-    return _call(prompt, max_tokens=4000)
+    return _call(prompt, max_tokens=3500)
 
 
 def _strip_fences(text):

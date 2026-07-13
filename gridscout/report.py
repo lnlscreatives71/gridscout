@@ -284,7 +284,13 @@ h4 {{ font-family:'Syne', system-ui, sans-serif; font-weight:700; font-size:12px
 .analysis ul {{ margin:0 0 12px; padding-left:18px; }}
 .analysis li {{ margin:0 0 6px; color:#c6d2dc; }}
 .analysis strong {{ color:#e6edf3; }}
-.foot {{ color:#4a5a68; font-size:9px; margin-top:30px; border-top:1px solid #1a232c; padding-top:10px; }}
+.cta {{ margin-top:26px; padding:20px 22px; border:1px solid #22303d; border-radius:10px;
+        background:linear-gradient(180deg, rgba(0,229,255,.06), rgba(168,85,247,.06)); }}
+.cta-h {{ font-family:'Syne', system-ui, sans-serif; font-weight:800; font-size:18px; color:{CYAN}; margin-bottom:6px; }}
+.cta-p {{ color:#c6d2dc; margin-bottom:12px; }}
+.cta-row {{ color:#e6edf3; font-size:12px; margin-top:4px; }}
+.cta-k {{ display:inline-block; min-width:78px; color:#8a9aa8; text-transform:uppercase; letter-spacing:.06em; font-size:10px; }}
+.foot {{ color:#4a5a68; font-size:9px; margin-top:24px; border-top:1px solid #1a232c; padding-top:10px; }}
 </style></head><body>
 
 <div class="page cover">
@@ -314,9 +320,15 @@ h4 {{ font-family:'Syne', system-ui, sans-serif; font-weight:700; font-size:12px
 </div>
 
 <div class="page">
-  <h2>What the map says</h2>
+  <h2>What this means for your business</h2>
   <div class="analysis">{analysis_html}</div>
-  <div class="foot">Prepared by LNL AI Agency. This is one moment in time. Re-check monthly to watch the edges move outward.</div>
+  <div class="cta">
+    <div class="cta-h">Ready to win back those customers?</div>
+    <div class="cta-p">Pushing your visible edge outward takes sustained, expert local search work. That is what LNL AI Agency does. Let's talk about turning the gray on this map into your customers.</div>
+    <div class="cta-row"><span class="cta-k">Book a call</span> https://booking.appointy.com/lnlaiagency</div>
+    <div class="cta-row"><span class="cta-k">Email</span> lainiem@lnlaiagency.com</div>
+  </div>
+  <div class="foot">Prepared by LNL AI Agency &middot; Where human vision meets machine precision &middot; This reflects one moment in time.</div>
 </div>
 
 </body></html>"""
