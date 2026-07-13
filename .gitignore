@@ -1,0 +1,9 @@
+.env
+output/
+*.db
+.db/
+__pycache__/
+*.pyc
+.DS_Store
+.kombai/
+BUILD_PROMPT.md
