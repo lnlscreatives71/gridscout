@@ -82,6 +82,19 @@ def _client():
     return anthropic.Anthropic()
 
 
+def _sanitize(text):
+    """Enforce the no-em-dash rule deterministically. The system prompt asks for
+    it, but a rule this strict cannot be left to the model to remember, so we
+    strip em and en dashes from every model response before it is ever saved. A
+    spaced dash becomes a comma, a bare one a comma, an unspaced en dash a hyphen.
+    """
+    text = text.replace(" — ", ", ").replace(" – ", ", ")
+    text = text.replace(" —", ",").replace(" –", ",")
+    text = text.replace("— ", ", ").replace("– ", ", ")
+    text = text.replace("—", ", ").replace("–", "-")
+    return text
+
+
 def _call(user_prompt, max_tokens):
     """One message to the model. Returns (text, usage dict)."""
     client = _client()
@@ -92,7 +105,7 @@ def _call(user_prompt, max_tokens):
         system=SYSTEM,
         messages=[{"role": "user", "content": user_prompt}],
     )
-    text = "".join(b.text for b in resp.content if b.type == "text")
+    text = _sanitize("".join(b.text for b in resp.content if b.type == "text"))
     usage = {"input_tokens": resp.usage.input_tokens,
              "output_tokens": resp.usage.output_tokens}
     return text, usage, model
