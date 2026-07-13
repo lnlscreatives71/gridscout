@@ -19,7 +19,8 @@ def _match(target: str, name: str) -> bool:
 def run_scan(business: str, keyword: str, center_lat: float, center_lng: float,
              size: int = 7, radius_miles: float = 3.0, depth: int = 20,
              provider_name: str | None = None, workers: int = 8):
-    provider = get_provider(provider_name)
+    provider = get_provider(provider_name, center=(center_lat, center_lng),
+                            target=business)
     points = build_grid(center_lat, center_lng, size, radius_miles)
 
     def one(p):
