@@ -250,15 +250,16 @@ def build_html(findings, meta, pins, analysis_md, use_basemap=True):
    so text never runs to the paper edge. The dark background is set on html so it
    propagates to the whole sheet (margins included) and the report stays full
    bleed dark. */
-@page {{ size: A4; margin: 17mm 16mm; }}
+/* Paint the dark on @page so the whole sheet, margins included, stays full
+   bleed dark on every physical page, while the margin keeps text off the edges,
+   including on pages a long analysis overflows onto. */
+@page {{ size: A4; margin: 16mm; background: #0b0f14; }}
 * {{ box-sizing: border-box; }}
-html {{ background:#0b0f14; }}
-body {{ margin:0; background:#0b0f14; color:#e6edf3;
+html, body {{ background:#0b0f14; }}
+body {{ margin:0; color:#e6edf3;
        font-family:'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size:11px; line-height:1.55; }}
 .page {{ page-break-after:always; }}
 .page:last-child {{ page-break-after:auto; }}
-.cover {{ display:flex; flex-direction:column; min-height:258mm; }}
-.cover .cover-foot {{ margin-top:auto; }}
 h1 {{ font-family:'Syne', system-ui, sans-serif; font-weight:800; font-size:34px; line-height:1.15; margin:0 0 4px; letter-spacing:-.01em; }}
 h2 {{ font-family:'Syne', system-ui, sans-serif; font-weight:800; font-size:20px; margin:0 0 14px; color:{CYAN}; }}
 h3 {{ font-family:'Syne', system-ui, sans-serif; font-weight:700; font-size:14px; margin:18px 0 6px; color:{CYAN}; text-transform:uppercase; letter-spacing:.05em; }}
@@ -266,10 +267,10 @@ h4 {{ font-family:'Syne', system-ui, sans-serif; font-weight:700; font-size:12px
 .kw {{ color:{CYAN}; font-size:14px; }}
 .muted {{ color:#8a9aa8; }}
 .brandbar {{ height:4px; width:80px; background:linear-gradient(90deg,{CYAN},{PURPLE}); margin:0 0 40px; border-radius:2px; }}
-.cover-lead {{ margin-top:70px; }}
-.cover-score {{ font-family:'Syne', system-ui, sans-serif; font-weight:800; font-size:110px; line-height:1.12; color:{CYAN}; margin:38px 0 0; }}
+.cover-lead {{ margin-top:96px; }}
+.cover-score {{ font-family:'Syne', system-ui, sans-serif; font-weight:800; font-size:104px; line-height:1.12; color:{CYAN}; margin:44px 0 0; }}
 .cover-score small {{ font-size:24px; color:#8a9aa8; font-family:'IBM Plex Mono', ui-monospace, monospace; }}
-.cover-foot {{ color:#8a9aa8; font-size:11px; padding-top:24px; }}
+.cover-foot {{ color:#8a9aa8; font-size:11px; margin-top:64px; }}
 .mapwrap {{ display:flex; gap:20px; align-items:flex-start; }}
 .mapwrap .map {{ flex:1; }}
 .legend {{ width:150px; }}
