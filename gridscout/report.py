@@ -50,7 +50,34 @@ def _global_px(lat, lng, zoom):
     return x, y
 
 
-def _static_map_svg(meta, pins, target_px=760, timeout=8):
+def _real_place(name):
+    """A real place name worth labeling, not a directional fallback."""
+    if not name:
+        return False
+    low = name.lower()
+    return name[0].isupper() and "edge" not in low and "side" not in low
+
+
+def _zone_labels(findings, analysis):
+    """Real neighborhood names with map coordinates, so the map names the areas
+    the pitch talks about. Weak zones first, since those are the ones being lost.
+    findings zones carry the geocoded names, analysis zones carry the centroids,
+    and they are built in the same order, so they line up."""
+    labels, seen = [], set()
+    pairs = (list(zip(analysis["weak_zones"], findings["weak_zones"]))
+             + list(zip(analysis["strong_zones"], findings["strong_zones"])))
+    for za, zf in pairs:
+        name = zf.get("place")
+        if _real_place(name) and name not in seen:
+            seen.add(name)
+            labels.append({"lat": za["centroid_lat"], "lng": za["centroid_lng"],
+                           "text": name})
+        if len(labels) >= 5:
+            break
+    return labels
+
+
+def _static_map_svg(meta, pins, labels=None, target_px=760, timeout=8):
     """A real basemap for the PDF: CARTO dark tiles stitched behind the rank pins.
 
     Fetches the tiles covering the scan area, embeds them as data URIs so the SVG
@@ -84,8 +111,10 @@ def _static_map_svg(meta, pins, target_px=760, timeout=8):
     for ty in range(int(y0 // 256), int(y1 // 256) + 1):
         for tx in range(int(x0 // 256), int(x1 // 256) + 1):
             sub = subs[(tx + ty) % 4]
+            # @2x retina tiles: twice the detail, so street and place labels are
+            # legible in print. dark_all carries CARTO's street and place labels.
             url = (f"https://{sub}.basemaps.cartocdn.com/dark_all/"
-                   f"{zoom}/{tx}/{ty}.png")
+                   f"{zoom}/{tx}/{ty}@2x.png")
             try:
                 req = urllib.request.Request(
                     url, headers={"User-Agent": "gridscout/1.0"})
@@ -113,8 +142,10 @@ def _static_map_svg(meta, pins, target_px=760, timeout=8):
         fill = _color(rank)
         label = "X" if rank is None else str(rank)
         txt = "#04080c" if rank is not None else "#c9d4de"
+        # gray "not found" pins sit lighter so the map and its labels show through
+        op = 0.62 if rank is None else 0.86
         pin_svg.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{r:.1f}" '
-                       f'fill="{fill}" fill-opacity="0.92" stroke="#04080c" '
+                       f'fill="{fill}" fill-opacity="{op}" stroke="#04080c" '
                        f'stroke-opacity="0.45" stroke-width="1"/>')
         pin_svg.append(f'<text x="{cx:.1f}" y="{cy + r * 0.34:.1f}" '
                        f'text-anchor="middle" font-size="{r * 0.95:.0f}" '
@@ -124,11 +155,30 @@ def _static_map_svg(meta, pins, target_px=760, timeout=8):
     pin_svg.append(f'<circle cx="{cgx - x0:.1f}" cy="{cgy - y0:.1f}" r="5" '
                    f'fill="none" stroke="{PURPLE}" stroke-width="3"/>')
 
+    # neighborhood name labels, drawn on top so they are readable over the pins
+    label_svg = []
+    for lb in (labels or []):
+        lgx, lgy = _global_px(lb["lat"], lb["lng"], zoom)
+        lx, ly = lgx - x0, lgy - y0
+        if not (6 <= lx <= W - 6 and 6 <= ly <= H - 6):
+            continue
+        txt = _html.escape(lb["text"])
+        w = len(lb["text"]) * 6.6 + 14
+        lx = min(max(lx, w / 2 + 2), W - w / 2 - 2)
+        label_svg.append(
+            f'<rect x="{lx - w / 2:.1f}" y="{ly - 9:.1f}" width="{w:.1f}" '
+            f'height="17" rx="8.5" fill="#0b0f14" fill-opacity="0.86" '
+            f'stroke="{CYAN}" stroke-opacity="0.55" stroke-width="0.75"/>')
+        label_svg.append(
+            f'<text x="{lx:.1f}" y="{ly + 3:.1f}" text-anchor="middle" '
+            f'font-size="10.5" font-weight="600" fill="{CYAN}" '
+            f'font-family="IBM Plex Mono, monospace">{txt}</text>')
+
     return (f'<svg viewBox="0 0 {W} {H}" width="100%" '
             f'xmlns="http://www.w3.org/2000/svg" '
             f'xmlns:xlink="http://www.w3.org/1999/xlink">'
             f'<rect width="{W}" height="{H}" fill="#0b0f14"/>'
-            + "".join(tiles) + "".join(pin_svg)
+            + "".join(tiles) + "".join(pin_svg) + "".join(label_svg)
             + f'<rect width="{W}" height="{H}" fill="none" stroke="#22303d" '
             f'rx="8"/></svg>')
 
@@ -224,11 +274,11 @@ def _md_to_html(md):
     return "\n".join(out)
 
 
-def build_html(findings, meta, pins, analysis_md, use_basemap=True):
+def build_html(findings, meta, pins, analysis_md, labels=None, use_basemap=True):
     v = findings["visibility"]
     # a real stitched basemap when the tiles are reachable, otherwise the
     # self-contained schematic grid so the report still builds offline
-    svg = (_static_map_svg(meta, pins) if use_basemap else None) \
+    svg = (_static_map_svg(meta, pins, labels=labels) if use_basemap else None) \
         or _svg_heatmap(meta, pins)
     reach = findings.get("reach") or {}
     far = reach.get("farthest_you_appear_miles")
@@ -342,7 +392,8 @@ def render_pdf(findings, analysis, analysis_md, out_path):
     """Render the report to a PDF. Returns (pdf_path or None, html_path)."""
     meta = analysis["meta"]
     pins = analysis["pins"]
-    html_doc = build_html(findings, meta, pins, analysis_md)
+    labels = _zone_labels(findings, analysis)
+    html_doc = build_html(findings, meta, pins, analysis_md, labels=labels)
     html_path = os.path.splitext(out_path)[0] + ".html"
     with open(html_path, "w") as f:
         f.write(html_doc)
