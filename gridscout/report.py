@@ -23,6 +23,10 @@ import urllib.request
 CYAN = "#00e5ff"
 PURPLE = "#a855f7"
 
+# Where the report's call to action points. Change these in one place.
+BOOKING_URL = "https://lnlcrm.com/book/discovery-call"
+CONTACT_EMAIL = "lainiem@lnlaiagency.com"
+
 
 def _color(rank):
     if rank is None:
@@ -325,8 +329,8 @@ h4 {{ font-family:'Syne', system-ui, sans-serif; font-weight:700; font-size:12px
   <div class="cta">
     <div class="cta-h">Ready to win back those customers?</div>
     <div class="cta-p">Pushing your visible edge outward takes sustained, expert local search work. That is what LNL AI Agency does. Let's talk about turning the gray on this map into your customers.</div>
-    <div class="cta-row"><span class="cta-k">Book a call</span> https://booking.appointy.com/lnlaiagency</div>
-    <div class="cta-row"><span class="cta-k">Email</span> lainiem@lnlaiagency.com</div>
+    <div class="cta-row"><span class="cta-k">Book a call</span> {BOOKING_URL}</div>
+    <div class="cta-row"><span class="cta-k">Email</span> {CONTACT_EMAIL}</div>
   </div>
   <div class="foot">Prepared by LNL AI Agency &middot; Where human vision meets machine precision &middot; This reflects one moment in time.</div>
 </div>
