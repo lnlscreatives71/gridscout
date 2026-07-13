@@ -9,18 +9,31 @@ TEMPLATE = """<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>{business} - Grid Scan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://basemaps.cartocdn.com">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Syne:wght@600;800&display=swap" rel="stylesheet">
 <style>
   :root {{ --bg:#0b0f14; --panel:#131a22; --line:#22303d; --cyan:#00e5ff; --purple:#a855f7; --txt:#e6edf3; --dim:#8a9aa8; }}
   * {{ box-sizing:border-box; }}
-  body {{ margin:0; background:var(--bg); color:var(--txt); font-family:'IBM Plex Mono',monospace; }}
-  header {{ padding:18px 24px; border-bottom:1px solid var(--line); display:flex; align-items:baseline; gap:16px; flex-wrap:wrap; }}
-  h1 {{ font-family:'Syne',sans-serif; font-weight:800; font-size:20px; margin:0; letter-spacing:-.01em; }}
+  html, body {{ height:100%; }}
+  body {{ margin:0; background:var(--bg); color:var(--txt); line-height:1.5;
+          font-family:'IBM Plex Mono', ui-monospace, Menlo, monospace;
+          display:flex; flex-direction:column; height:100vh; }}
+  header {{ flex:0 0 auto; padding:16px 24px; border-bottom:1px solid var(--line);
+            display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }}
+  h1 {{ font-family:'Syne', system-ui, sans-serif; font-weight:800; font-size:20px;
+        line-height:1.25; margin:0; letter-spacing:-.01em; }}
   .kw {{ color:var(--cyan); font-size:13px; }}
-  .wrap {{ display:grid; grid-template-columns:1fr 300px; min-height:calc(100vh - 63px); }}
-  #map {{ height:calc(100vh - 63px); background:#0b0f14; }}
+  .wrap {{ flex:1 1 auto; min-height:0; display:grid; grid-template-columns:1fr 300px; }}
+  /* a faint grid so the surface reads as a dark map even before tiles paint */
+  #map {{ height:100%; min-height:0; background-color:#0b0f14;
+          background-image:linear-gradient(#131c26 1px, transparent 1px),
+                           linear-gradient(90deg, #131c26 1px, transparent 1px);
+          background-size:48px 48px; }}
+  .leaflet-container {{ font-family:'IBM Plex Mono', ui-monospace, Menlo, monospace; }}
   aside {{ background:var(--panel); border-left:1px solid var(--line); padding:20px; overflow:auto; }}
   .stat {{ margin-bottom:16px; }}
   .stat .n {{ font-family:'Syne',sans-serif; font-size:28px; font-weight:800; color:var(--cyan); line-height:1; }}
@@ -68,7 +81,19 @@ const DEPTH = {depth};
 
 const map = L.map('map', {{zoomControl:true}}).setView([{clat},{clng}], 12);
 L.tileLayer('https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png',
-  {{attribution:'&copy; OpenStreetMap, &copy; CARTO', maxZoom:19}}).addTo(map);
+  {{subdomains:'abcd', attribution:'&copy; OpenStreetMap, &copy; CARTO',
+    maxZoom:19, crossOrigin:true}}).addTo(map);
+
+// Leaflet measures the container at init. In a flex layout that size is not
+// final until the browser finishes layout, and if it measures too early the
+// basemap never requests the visible tiles (you see the pins but no map). Force
+// a remeasure once the map is ready, once on load, and once more after layout
+// settles, so the tiles always fill.
+function fit() {{ map.invalidateSize(); }}
+map.whenReady(fit);
+window.addEventListener('load', fit);
+window.addEventListener('resize', fit);
+setTimeout(fit, 300);
 
 function color(r) {{
   if (r === null) return '#3b4654';
