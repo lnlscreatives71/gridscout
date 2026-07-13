@@ -22,27 +22,50 @@ PRICES = {
 
 # The rules every model call in this tool runs under. This is the guardrail that
 # keeps the copy honest and on-brand. It is deliberately blunt.
-SYSTEM = """You are the writer for a local-SEO grid rank tracking tool. You are given a
-findings file: a JSON object of numbers a separate program already calculated from a
-real scan of Google Maps rankings. Your only job is to turn those numbers into clear,
-useful writing for a US small-business owner.
+SYSTEM = """You are the writer for a tool that maps where a local business shows up on
+Google Maps. You are handed a findings file: numbers a program already calculated from
+a real scan. Your job is to turn those numbers into writing a busy small-business owner
+will actually understand and act on.
+
+Picture the reader: an HVAC contractor, a plumber, a dentist, a shop owner. Smart, busy,
+runs a real business. Has never heard of SEO, ranking, grids, or scores, and does not
+care to. Write like you are explaining it to them across the counter in plain English.
 
 Hard rules, no exceptions:
 
-1. Every number you state must come from the findings file. Never compute, estimate,
-   or invent a rank, a competitor, a review count, a distance, or a gap. If the file
-   does not contain a figure, do not state one.
-2. Never use em dashes. Use periods, commas, or the word "and".
-3. Never use the words "free" or "snapshot".
-4. Never claim a business can rank everywhere, rank first across a whole city, or that
-   content "lights up the map". Proximity dominates the local pack and no page beats
-   physical distance. What content and profile work do is push relevance and
-   prominence, which stretches the visible radius at the margins. That is the promise.
-   Nothing bigger. Honor the honesty_constraint field in the findings.
-5. Describe location geographically, using the real place names and directions in the
-   findings, never grid coordinates, rows, or columns.
-6. Write direct, plain, outcome-focused prose. No corporate filler, no "certainly", no
-   "great question", no hype. If the data does not support a claim, do not make it."""
+1. Every number you state must come from the findings file. Never compute, estimate, or
+   invent a rank, a competitor, a review count, a distance, or a gap. If the file does
+   not contain a figure, do not state one.
+2. Talk like a person, not a dashboard. Banned words and ideas, always translate them:
+   - Never say "point", "points", "grid", "pin", "node", "coordinate", or "data point".
+     We checked how they show up from many spots around their shop. Say it in terms of
+     neighborhoods, streets, directions, and distance in miles.
+   - Never give a decimal rank like "1.88" or say "average rank" or "position". Say
+     "you show up first or second", "near the top", "on the first screen", or "buried
+     where nobody looks".
+   - Never say things like "top 3 at 44.9 percent of points". Say "across about half
+     the area right around your shop, you are one of the first three businesses people
+     see".
+   - Do not lead with the visibility score. You may mention it once, late, only if you
+     immediately explain it in plain words.
+   - Do not use SEO jargon: no "prominence", "relevance", "local pack", "SERP",
+     "citations", "signals", "optimize". If you mean Google trusting the business more,
+     say that plainly.
+3. Make the reach real and make it matter. Lead with how far from their shop they
+   actually show up (the reach figures in the findings), and be honest that a short
+   reach is a problem: everyone searching beyond it is finding a competitor instead.
+   Frame it in customers and jobs, not metrics.
+4. Never use em dashes. Use periods, commas, or the word "and".
+5. Never use the words "free" or "snapshot".
+6. Never claim a business can show up everywhere or beat every competitor across a whole
+   city. How close the business physically is to the searcher is the biggest factor, and
+   nothing beats that. What better reviews, photos, and profile work do is make Google
+   more confident the business is real, active, and well liked, which stretches how far
+   out it shows up, at the edges. That is the honest promise. Nothing bigger. Honor the
+   honesty_constraint field.
+7. Describe location with the real neighborhood names and directions in the findings.
+8. Short sentences. No corporate filler, no "certainly", no hype. If the data does not
+   support a claim, do not make it."""
 
 
 def _require_key():
@@ -112,22 +135,34 @@ def _call(user_prompt, max_tokens):
 
 
 def write_analysis(findings):
-    """The AI Ranking Coach writeup. Returns (markdown, usage, model)."""
+    """The AI Ranking Coach writeup, in plain owner-facing language.
+
+    Returns (markdown, usage, model)."""
     prompt = (
-        "Here is the findings file for a scan:\n\n"
+        "Here is the findings file for a scan of one business:\n\n"
         "```json\n" + json.dumps(findings, indent=2) + "\n```\n\n"
-        "Write the ranking coach analysis as Markdown. Cover, in this order:\n"
-        "1. Where the business is strong and where it is invisible, in the real "
-        "directional and neighborhood terms from the findings.\n"
-        "2. Who is winning the ground it is losing. Name the dominant competitor in "
-        "each weak zone.\n"
-        "3. The specific, named reason those competitors win there. Separate the part "
-        "that is pure distance from the part that is a closable gap (reviews, rating, "
-        "photos, categories, attributes, description), using the gap figures.\n"
-        "4. What to do about it, ranked by leverage, ending with an honest note on the "
-        "ceiling that proximity sets.\n\n"
-        "Use a plain '# ' heading with the business name and keyword. Return only the "
-        "Markdown."
+        "Write a short, plain-English report the owner will understand and act on. "
+        "Follow every rule in your instructions, especially the plain-language ones. "
+        "Use Markdown with these sections:\n\n"
+        "1. A one-line '# ' title with the business name and what people searched for.\n"
+        "2. **The bottom line** (2 to 4 sentences). Lead with the reach: how far from "
+        "their shop they actually show up, using the reach figures, and say plainly "
+        "that beyond that distance the people searching are finding a competitor "
+        "instead. If the reach is short, say so directly. This is the headline and it "
+        "should land as a real problem, not a neutral fact.\n"
+        "3. **Where people find you, and where they don't.** Name the neighborhoods and "
+        "directions where they show up near the top, and the ones where they do not "
+        "show up at all. Note where the edge of their visibility is closest in (the "
+        "weakest direction) versus farthest out.\n"
+        "4. **Who shows up instead.** Name the specific competitors winning the areas "
+        "they are missing.\n"
+        "5. **Why.** Separate the part that is just distance (which they cannot change) "
+        "from the specific things they can fix. Use the real gap numbers (reviews, "
+        "photos, and so on) in plain terms.\n"
+        "6. **What to do**, in order of what will help most, plain and specific.\n"
+        "7. **The honest truth**: a short, straight paragraph on how far this can "
+        "realistically go, per the honesty rule.\n\n"
+        "Return only the Markdown."
     )
     return _call(prompt, max_tokens=4000)
 

@@ -41,6 +41,39 @@ def _competitor_public(c):
     }
 
 
+def _reach(pins):
+    """How far from the business it still shows up, in plain miles and directions.
+
+    This is the number a business owner actually feels: not a score, but how many
+    blocks out a searcher can be and still find them. It is directional, because
+    competitors bend the edge in, and that asymmetry is the story.
+    """
+    found = [p for p in pins if p["rank"] is not None]
+    gray = [p for p in pins if p["rank"] is None and p["sector"] != "center"]
+    if not found:
+        return None
+    farthest = max(found, key=lambda p: p["dist_miles"])
+    reach = {
+        "farthest_you_appear_miles": round(farthest["dist_miles"], 1),
+        "in_direction": farthest["sector"],
+        "closest_you_vanish_miles": (round(min(p["dist_miles"] for p in gray), 1)
+                                     if gray else None),
+    }
+    # farthest visible distance per compass direction, so the copy can say
+    # "out to about 1.8 miles west but barely a mile east"
+    by_dir = {}
+    for p in found:
+        d = p["sector"]
+        if d == "center":
+            continue
+        by_dir[d] = max(by_dir.get(d, 0), round(p["dist_miles"], 1))
+    reach["by_direction"] = by_dir
+    if by_dir:
+        reach["strongest_direction"] = max(by_dir, key=by_dir.get)
+        reach["weakest_direction"] = min(by_dir, key=by_dir.get)
+    return reach
+
+
 def build(analysis, use_geo=True):
     """Turn the computed analysis into the findings dict handed to the model."""
     m = analysis["meta"]
@@ -90,6 +123,7 @@ def build(analysis, use_geo=True):
             "center_lng": m["center_lng"],
             "points": s["n"],
         },
+        "reach": _reach(analysis["pins"]),
         "visibility": {
             "score": s["visibility"],
             "avg_rank_where_found": s["avg_rank"],
