@@ -27,11 +27,27 @@ def _slugify(text):
     return "".join(c if c.isalnum() else "-" for c in text.lower()).strip("-")
 
 
+def _real_place(name):
+    """True for an actual place name, false for a directional fallback like
+    'the northeast edge' that has no business sitting in schema."""
+    if not name:
+        return False
+    low = name.lower()
+    return name[0].isupper() and "edge" not in low and "side" not in low
+
+
 def _json_ld(findings):
-    """LocalBusiness schema whose areaServed lists exactly the weak zones."""
+    """LocalBusiness schema whose areaServed lists the real neighborhoods it is
+    working to reach, plus the city. Directional fallbacks are left out because
+    they are not real places."""
     t = findings["target_profile"]
     grid = findings["grid"]
-    area = [z["place"] for z in findings["weak_zones"]]
+    area = []
+    for z in findings["weak_zones"]:
+        if _real_place(z["place"]) and z["place"] not in area:
+            area.append(z["place"])
+    if findings.get("city") and findings["city"] not in area:
+        area.append(findings["city"])
     data = {
         "@context": "https://schema.org",
         "@type": "LocalBusiness",
