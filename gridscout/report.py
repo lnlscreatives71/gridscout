@@ -11,11 +11,14 @@ CLI on PATH (the Homebrew install). If neither is present it still writes the HT
 
 No em dashes, no scoring banners, and the word the brand avoids never appears.
 """
+import base64
 import html as _html
+import math
 import os
 import re
 import shutil
 import subprocess
+import urllib.request
 
 CYAN = "#00e5ff"
 PURPLE = "#a855f7"
@@ -31,6 +34,99 @@ def _color(rank):
     if rank <= 12:
         return "#fbbf24"
     return "#fb7185"
+
+
+def _global_px(lat, lng, zoom):
+    """Web Mercator pixel coordinate at a zoom (256 px tiles)."""
+    n = 256.0 * (2 ** zoom)
+    x = (lng + 180.0) / 360.0 * n
+    siny = math.sin(math.radians(lat))
+    siny = min(max(siny, -0.9999), 0.9999)
+    y = (0.5 - math.log((1 + siny) / (1 - siny)) / (4 * math.pi)) * n
+    return x, y
+
+
+def _static_map_svg(meta, pins, target_px=760, timeout=8):
+    """A real basemap for the PDF: CARTO dark tiles stitched behind the rank pins.
+
+    Fetches the tiles covering the scan area, embeds them as data URIs so the SVG
+    is fully self-contained (no network at render time, prints anywhere), and
+    overlays the numbered pins projected to the right pixels. Returns None if the
+    tiles cannot be fetched, so the caller can fall back to the schematic grid.
+    """
+    lats = [p["lat"] for p in pins]
+    lngs = [p["lng"] for p in pins]
+    pad_lat = (max(lats) - min(lats)) * 0.14 or 0.01
+    pad_lng = (max(lngs) - min(lngs)) * 0.14 or 0.01
+    north, south = max(lats) + pad_lat, min(lats) - pad_lat
+    west, east = min(lngs) - pad_lng, max(lngs) + pad_lng
+
+    zoom = 16
+    while zoom > 1:
+        x0, y0 = _global_px(north, west, zoom)
+        x1, y1 = _global_px(south, east, zoom)
+        if (x1 - x0) <= target_px and (y1 - y0) <= target_px:
+            break
+        zoom -= 1
+
+    x0, y0 = _global_px(north, west, zoom)
+    x1, y1 = _global_px(south, east, zoom)
+    W, H = int(round(x1 - x0)), int(round(y1 - y0))
+    if W < 10 or H < 10:
+        return None
+
+    subs = "abcd"
+    tiles = []
+    for ty in range(int(y0 // 256), int(y1 // 256) + 1):
+        for tx in range(int(x0 // 256), int(x1 // 256) + 1):
+            sub = subs[(tx + ty) % 4]
+            url = (f"https://{sub}.basemaps.cartocdn.com/dark_all/"
+                   f"{zoom}/{tx}/{ty}.png")
+            try:
+                req = urllib.request.Request(
+                    url, headers={"User-Agent": "gridscout/1.0"})
+                with urllib.request.urlopen(req, timeout=timeout) as r:
+                    data = r.read()
+            except Exception:
+                return None
+            b64 = base64.b64encode(data).decode()
+            ox, oy = tx * 256 - x0, ty * 256 - y0
+            tiles.append(f'<image x="{ox:.1f}" y="{oy:.1f}" width="256" '
+                         f'height="256" xlink:href="data:image/png;base64,{b64}"/>')
+    if not tiles:
+        return None
+
+    # pin radius from the actual spacing between neighboring pins
+    centers = [(_global_px(p["lat"], p["lng"], zoom), p) for p in pins]
+    xs = sorted({round(c[0][0], 1) for c in centers})
+    spacing = min((b - a for a, b in zip(xs, xs[1:])), default=40) if len(xs) > 1 else 40
+    r = max(9.0, min(20.0, spacing * 0.42))
+
+    pin_svg = []
+    for (gx, gy), p in centers:
+        cx, cy = gx - x0, gy - y0
+        rank = p["rank"]
+        fill = _color(rank)
+        label = "X" if rank is None else str(rank)
+        txt = "#04080c" if rank is not None else "#c9d4de"
+        pin_svg.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{r:.1f}" '
+                       f'fill="{fill}" fill-opacity="0.92" stroke="#04080c" '
+                       f'stroke-opacity="0.45" stroke-width="1"/>')
+        pin_svg.append(f'<text x="{cx:.1f}" y="{cy + r * 0.34:.1f}" '
+                       f'text-anchor="middle" font-size="{r * 0.95:.0f}" '
+                       f'font-weight="600" fill="{txt}" '
+                       f'font-family="IBM Plex Mono, monospace">{label}</text>')
+    cgx, cgy = _global_px(meta["center_lat"], meta["center_lng"], zoom)
+    pin_svg.append(f'<circle cx="{cgx - x0:.1f}" cy="{cgy - y0:.1f}" r="5" '
+                   f'fill="none" stroke="{PURPLE}" stroke-width="3"/>')
+
+    return (f'<svg viewBox="0 0 {W} {H}" width="100%" '
+            f'xmlns="http://www.w3.org/2000/svg" '
+            f'xmlns:xlink="http://www.w3.org/1999/xlink">'
+            f'<rect width="{W}" height="{H}" fill="#0b0f14"/>'
+            + "".join(tiles) + "".join(pin_svg)
+            + f'<rect width="{W}" height="{H}" fill="none" stroke="#22303d" '
+            f'rx="8"/></svg>')
 
 
 def _svg_heatmap(meta, pins):
@@ -124,9 +220,12 @@ def _md_to_html(md):
     return "\n".join(out)
 
 
-def build_html(findings, meta, pins, analysis_md):
+def build_html(findings, meta, pins, analysis_md, use_basemap=True):
     v = findings["visibility"]
-    svg = _svg_heatmap(meta, pins)
+    # a real stitched basemap when the tiles are reachable, otherwise the
+    # self-contained schematic grid so the report still builds offline
+    svg = (_static_map_svg(meta, pins) if use_basemap else None) \
+        or _svg_heatmap(meta, pins)
     cards = "".join(
         f'<div class="card"><div class="cn">{val}</div><div class="cl">{lbl}</div></div>'
         for val, lbl in [
@@ -147,19 +246,19 @@ def build_html(findings, meta, pins, analysis_md):
 @page {{ size: A4; margin: 0; }}
 * {{ box-sizing: border-box; }}
 body {{ margin:0; background:#0b0f14; color:#e6edf3;
-       font-family:'IBM Plex Mono', monospace; font-size:11px; line-height:1.55; }}
+       font-family:'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size:11px; line-height:1.55; }}
 .page {{ width:210mm; min-height:297mm; padding:22mm 20mm; page-break-after:always; background:#0b0f14; }}
 .page:last-child {{ page-break-after:auto; }}
-h1 {{ font-family:'Syne',sans-serif; font-weight:800; font-size:34px; margin:0 0 4px; letter-spacing:-.01em; }}
-h2 {{ font-family:'Syne',sans-serif; font-weight:800; font-size:20px; margin:0 0 14px; color:{CYAN}; }}
-h3 {{ font-family:'Syne',sans-serif; font-weight:700; font-size:14px; margin:18px 0 6px; color:{CYAN}; text-transform:uppercase; letter-spacing:.05em; }}
-h4 {{ font-family:'Syne',sans-serif; font-weight:700; font-size:12px; margin:14px 0 5px; color:#e6edf3; }}
+h1 {{ font-family:'Syne', system-ui, sans-serif; font-weight:800; font-size:34px; line-height:1.15; margin:0 0 4px; letter-spacing:-.01em; }}
+h2 {{ font-family:'Syne', system-ui, sans-serif; font-weight:800; font-size:20px; margin:0 0 14px; color:{CYAN}; }}
+h3 {{ font-family:'Syne', system-ui, sans-serif; font-weight:700; font-size:14px; margin:18px 0 6px; color:{CYAN}; text-transform:uppercase; letter-spacing:.05em; }}
+h4 {{ font-family:'Syne', system-ui, sans-serif; font-weight:700; font-size:12px; margin:14px 0 5px; color:#e6edf3; }}
 .kw {{ color:{CYAN}; font-size:14px; }}
 .muted {{ color:#8a9aa8; }}
 .brandbar {{ height:4px; width:80px; background:linear-gradient(90deg,{CYAN},{PURPLE}); margin:0 0 40px; border-radius:2px; }}
 .cover-lead {{ margin-top:120px; }}
-.cover-score {{ font-family:'Syne',sans-serif; font-weight:800; font-size:120px; line-height:1; color:{CYAN}; margin:38px 0 0; }}
-.cover-score small {{ font-size:24px; color:#8a9aa8; font-family:'IBM Plex Mono'; }}
+.cover-score {{ font-family:'Syne', system-ui, sans-serif; font-weight:800; font-size:110px; line-height:1.12; color:{CYAN}; margin:38px 0 0; }}
+.cover-score small {{ font-size:24px; color:#8a9aa8; font-family:'IBM Plex Mono', ui-monospace, monospace; }}
 .cover-foot {{ margin-top:120px; color:#8a9aa8; font-size:11px; }}
 .mapwrap {{ display:flex; gap:20px; align-items:flex-start; }}
 .mapwrap .map {{ flex:1; }}
@@ -168,7 +267,7 @@ h4 {{ font-family:'Syne',sans-serif; font-weight:700; font-size:12px; margin:14p
 .sw {{ width:14px; height:14px; border-radius:50%; display:inline-block; }}
 .cards {{ display:flex; gap:10px; margin:22px 0 0; }}
 .card {{ flex:1; background:#131a22; border:1px solid #22303d; border-radius:8px; padding:14px 12px; }}
-.cn {{ font-family:'Syne',sans-serif; font-weight:800; font-size:24px; color:{CYAN}; line-height:1; }}
+.cn {{ font-family:'Syne', system-ui, sans-serif; font-weight:800; font-size:24px; color:{CYAN}; line-height:1.15; }}
 .cl {{ font-size:9px; color:#8a9aa8; text-transform:uppercase; letter-spacing:.08em; margin-top:6px; }}
 .analysis p {{ margin:0 0 10px; color:#c6d2dc; }}
 .analysis ul {{ margin:0 0 12px; padding-left:18px; }}
