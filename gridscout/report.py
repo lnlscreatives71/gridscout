@@ -246,12 +246,19 @@ def build_html(findings, meta, pins, analysis_md, use_basemap=True):
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8"/>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Syne:wght@600;800&display=swap');
-@page {{ size: A4; margin: 0; }}
+/* margin on every physical sheet, including pages the analysis overflows onto,
+   so text never runs to the paper edge. The dark background is set on html so it
+   propagates to the whole sheet (margins included) and the report stays full
+   bleed dark. */
+@page {{ size: A4; margin: 17mm 16mm; }}
 * {{ box-sizing: border-box; }}
+html {{ background:#0b0f14; }}
 body {{ margin:0; background:#0b0f14; color:#e6edf3;
        font-family:'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size:11px; line-height:1.55; }}
-.page {{ width:210mm; min-height:297mm; padding:22mm 20mm; page-break-after:always; background:#0b0f14; }}
+.page {{ page-break-after:always; }}
 .page:last-child {{ page-break-after:auto; }}
+.cover {{ display:flex; flex-direction:column; min-height:258mm; }}
+.cover .cover-foot {{ margin-top:auto; }}
 h1 {{ font-family:'Syne', system-ui, sans-serif; font-weight:800; font-size:34px; line-height:1.15; margin:0 0 4px; letter-spacing:-.01em; }}
 h2 {{ font-family:'Syne', system-ui, sans-serif; font-weight:800; font-size:20px; margin:0 0 14px; color:{CYAN}; }}
 h3 {{ font-family:'Syne', system-ui, sans-serif; font-weight:700; font-size:14px; margin:18px 0 6px; color:{CYAN}; text-transform:uppercase; letter-spacing:.05em; }}
@@ -259,10 +266,10 @@ h4 {{ font-family:'Syne', system-ui, sans-serif; font-weight:700; font-size:12px
 .kw {{ color:{CYAN}; font-size:14px; }}
 .muted {{ color:#8a9aa8; }}
 .brandbar {{ height:4px; width:80px; background:linear-gradient(90deg,{CYAN},{PURPLE}); margin:0 0 40px; border-radius:2px; }}
-.cover-lead {{ margin-top:120px; }}
+.cover-lead {{ margin-top:70px; }}
 .cover-score {{ font-family:'Syne', system-ui, sans-serif; font-weight:800; font-size:110px; line-height:1.12; color:{CYAN}; margin:38px 0 0; }}
 .cover-score small {{ font-size:24px; color:#8a9aa8; font-family:'IBM Plex Mono', ui-monospace, monospace; }}
-.cover-foot {{ margin-top:120px; color:#8a9aa8; font-size:11px; }}
+.cover-foot {{ color:#8a9aa8; font-size:11px; padding-top:24px; }}
 .mapwrap {{ display:flex; gap:20px; align-items:flex-start; }}
 .mapwrap .map {{ flex:1; }}
 .legend {{ width:150px; }}
@@ -279,7 +286,7 @@ h4 {{ font-family:'Syne', system-ui, sans-serif; font-weight:700; font-size:12px
 .foot {{ color:#4a5a68; font-size:9px; margin-top:30px; border-top:1px solid #1a232c; padding-top:10px; }}
 </style></head><body>
 
-<div class="page">
+<div class="page cover">
   <div class="brandbar"></div>
   <div class="cover-lead">
     <div class="muted" style="letter-spacing:.2em;text-transform:uppercase;font-size:11px">Local Map Visibility Report</div>

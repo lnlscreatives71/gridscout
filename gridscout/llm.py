@@ -161,9 +161,11 @@ def write_analysis(findings):
         "5. **Why.** Separate the part that is just distance (which they cannot change) "
         "from the specific things they can fix. Use the real gap numbers (reviews, "
         "photos, and so on) in plain terms.\n"
-        "6. **What to do**, in order of what will help most, plain and specific.\n"
-        "7. **The honest truth**: a short, straight paragraph on how far this can "
-        "realistically go, per the honesty rule.\n\n"
+        "6. **What to do**, in order of what will help most, plain and specific.\n\n"
+        "Do not add a closing section about limits or the ceiling. End on the actions. "
+        "Keep the honesty rule in force throughout the body: never imply the business "
+        "can show up everywhere or beat distance, just do not write a separate "
+        "wrap-up paragraph about it.\n"
         "Return only the Markdown."
     )
     return _call(prompt, max_tokens=4000)
