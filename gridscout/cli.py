@@ -17,6 +17,29 @@ from .scanner import run_scan, print_summary
 OUT = os.getenv("GRIDSCOUT_OUT", "./output")
 
 
+def _slug(text):
+    return "".join(c if c.isalnum() else "-" for c in text.lower()).strip("-")
+
+
+def _resolve_scan_id(con, wanted):
+    """Return an explicit scan id, or the latest if none was given."""
+    if wanted:
+        return wanted
+    sid = store.latest_scan_id(con)
+    if not sid:
+        sys.exit("no scans yet. run a scan first.")
+    return sid
+
+
+def _load_analysis(scan_id=None):
+    """Load a scan from the store and run the shared analysis over it."""
+    from . import analysis
+    con = store.connect()
+    sid = _resolve_scan_id(con, scan_id)
+    meta, pins = analysis.load(con, store, sid)
+    return analysis.compute(meta, pins)
+
+
 def cmd_scan(a):
     meta, pins = run_scan(
         a.business, a.keyword, a.lat, a.lng,
@@ -28,8 +51,7 @@ def cmd_scan(a):
     meta["scan_id"] = scan_id
 
     os.makedirs(OUT, exist_ok=True)
-    slug = "".join(c if c.isalnum() else "-" for c in a.business.lower()).strip("-")
-    base = os.path.join(OUT, f"{slug}-{scan_id}")
+    base = os.path.join(OUT, f"{_slug(a.business)}-{scan_id}")
 
     with open(base + ".json", "w") as f:
         json.dump({"meta": meta, "pins": pins}, f, indent=2)
@@ -39,6 +61,20 @@ def cmd_scan(a):
     print(f"  scan #{scan_id}")
     print(f"  {base}.html")
     print(f"  {base}.json\n")
+
+
+def cmd_analyze(a):
+    from .analyze import render
+    analysis = _load_analysis(a.scan_id)
+    text = render(analysis)
+    print("\n" + text)
+
+    os.makedirs(OUT, exist_ok=True)
+    m = analysis["meta"]
+    base = os.path.join(OUT, f"{_slug(m['business'])}-{m['scan_id']}-analysis")
+    with open(base + ".md", "w") as f:
+        f.write(text + "\n")
+    print(f"\n  saved: {base}.md\n")
 
 
 def cmd_history(a):
@@ -69,6 +105,11 @@ def main():
     s.add_argument("--depth", type=int, default=20)
     s.add_argument("--provider", default=None, help="mock | dataforseo")
     s.set_defaults(func=cmd_scan)
+
+    an = sub.add_parser("analyze", help="written ranking analysis of a scan")
+    an.add_argument("scan_id", type=int, nargs="?", default=None,
+                    help="scan id (default: latest)")
+    an.set_defaults(func=cmd_analyze)
 
     h = sub.add_parser("history", help="rank history for a business + keyword")
     h.add_argument("--business", required=True)
