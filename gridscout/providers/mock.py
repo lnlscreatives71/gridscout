@@ -40,6 +40,49 @@ COMPETITORS = [
 # enough to win the center, weak enough to lose the far corners to the big players.
 TARGET_PROMINENCE = 71
 
+# Profile attributes a Google Business Profile can carry. The strong players fill
+# most of these in; the target has only a few. That difference is a real, closable
+# gap the analysis can name, so it belongs in the simulated data.
+GBP_ATTRIBUTES = [
+    "Online estimates", "Onsite services", "24-hour emergency service",
+    "Free consultation", "Financing available", "Wheelchair accessible entrance",
+    "Veteran-owned", "Family-owned and operated", "Appointment required",
+    "Repair services",
+]
+
+
+def _profile(name, prom, is_target, h):
+    """Deterministic deep-profile fields for one business.
+
+    Real ranking is not only proximity and reviews. Profile completeness, photo
+    count, claimed status, and listed attributes all feed prominence. The mock
+    fills these in so the findings file has genuine, calculable gaps to reason
+    over. The target is deliberately given a thinner profile than the strong
+    players, which is the common real situation: the business never finished
+    filling its profile out.
+    """
+    seed = int(hashlib.md5(f"{name}{h[:4]}".encode()).hexdigest()[:8], 16)
+    if is_target:
+        n_attrs = 3
+        photos = 11 + seed % 6
+        described = False
+        claimed = True
+    else:
+        n_attrs = min(len(GBP_ATTRIBUTES), 3 + round(prom / 100.0 * 6))
+        photos = int(prom * 1.6) + seed % 25
+        described = prom >= 52
+        claimed = prom >= 30
+    available = GBP_ATTRIBUTES[:n_attrs]
+    unavailable = GBP_ATTRIBUTES[n_attrs:]
+    return {
+        "photos_count": photos,
+        "claimed": claimed,
+        "description": (f"{name} provides heating and cooling service across the "
+                        f"metro area." if described else None),
+        "available_attributes": available,
+        "unavailable_attributes": unavailable,
+    }
+
 
 def _filler_field():
     """A denser background field of businesses scattered across the market.
@@ -124,12 +167,17 @@ class MockProvider:
         scored.sort(reverse=True, key=lambda t: t[0])
         out = []
         for i, (score, name, prom, cat, dmi) in enumerate(scored[:depth], start=1):
-            out.append({
+            is_target = bool(self.target and name == self.target)
+            item = {
                 "rank": i,
                 "name": name,
                 "place_id": "mock_" + hashlib.md5(name.encode()).hexdigest()[:12],
                 "rating": round(3.5 + prom / 100.0 * 1.4, 1),
                 "reviews": int(prom * 4.2) + (int(h[8:12], 16) % 40),
                 "category": cat,
-            })
+                "additional_categories": (["Air conditioning contractor"]
+                                          if prom >= 60 else []),
+            }
+            item.update(_profile(name, prom, is_target, h))
+            out.append(item)
         return out

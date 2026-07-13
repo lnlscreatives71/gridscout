@@ -22,8 +22,17 @@ WEAK_RANK = 10
 STRONG_RANK = 3
 
 
+def _all_categories(item):
+    cats = []
+    if item.get("category"):
+        cats.append(item["category"])
+    cats.extend(item.get("additional_categories") or [])
+    return cats
+
+
 def _target_profile(business, pins):
-    """Pull the target's own listing (rating, reviews, categories) out of the scan.
+    """Pull the target's own listing out of the scan: rating, reviews, and the
+    deep-profile signals (photos, claimed status, description, attributes).
 
     The profile is the same wherever the business appears, so we take the richest
     sighting: the one reporting the most reviews.
@@ -33,19 +42,25 @@ def _target_profile(business, pins):
     for p in pins:
         for r in p["results"]:
             if _match(business, r.get("name", "")):
-                if r.get("category"):
-                    cats[r["category"]] += 1
+                for c in _all_categories(r):
+                    cats[c] += 1
                 votes = r.get("reviews") or 0
                 if best is None or votes > (best.get("reviews") or 0):
                     best = r
-    prof = {
+    best = best or {}
+    return {
         "name": business,
-        "rating": (best or {}).get("rating"),
-        "reviews": (best or {}).get("reviews"),
-        "place_id": (best or {}).get("place_id"),
+        "rating": best.get("rating"),
+        "reviews": best.get("reviews"),
+        "place_id": best.get("place_id"),
         "categories": [c for c, _ in cats.most_common()],
+        "photos_count": best.get("photos_count"),
+        "claimed": best.get("claimed"),
+        "description": best.get("description"),
+        "has_description": bool(best.get("description")),
+        "available_attributes": best.get("available_attributes") or [],
+        "unavailable_attributes": best.get("unavailable_attributes") or [],
     }
-    return prof
 
 
 def _competitor_table(pins):
@@ -60,6 +75,11 @@ def _competitor_table(pins):
                 "name": name, "rating": r.get("rating"),
                 "reviews": r.get("reviews") or 0,
                 "category": r.get("category"),
+                "categories": _all_categories(r),
+                "photos_count": r.get("photos_count"),
+                "claimed": r.get("claimed"),
+                "has_description": bool(r.get("description")),
+                "available_attributes": r.get("available_attributes") or [],
                 "appearances": 0, "wins": 0,
                 "ranks": [],
             })
@@ -67,11 +87,17 @@ def _competitor_table(pins):
             a["ranks"].append(r["rank"])
             if r["rank"] == 1:
                 a["wins"] += 1
-            # keep the strongest profile seen
+            # keep the strongest / most complete profile seen
             if (r.get("reviews") or 0) > a["reviews"]:
                 a["reviews"] = r.get("reviews") or 0
             if r.get("rating") and (not a["rating"] or r["rating"] > a["rating"]):
                 a["rating"] = r["rating"]
+            if (r.get("photos_count") or 0) > (a["photos_count"] or 0):
+                a["photos_count"] = r.get("photos_count")
+            if len(r.get("available_attributes") or []) > len(a["available_attributes"]):
+                a["available_attributes"] = r.get("available_attributes") or []
+            if r.get("description"):
+                a["has_description"] = True
     for a in agg.values():
         a["best_rank"] = min(a["ranks"])
         a["avg_rank"] = round(sum(a["ranks"]) / len(a["ranks"]), 1)
@@ -192,29 +218,48 @@ def _gaps(target, weak_zones, comp_by_name, competitors):
     t_reviews = target.get("reviews") or 0
     t_rating = target.get("rating")
     t_cats = set(c.lower() for c in target.get("categories", []))
+    t_attrs = set(a.lower() for a in target.get("available_attributes", []))
+    t_photos = target.get("photos_count")
 
     # categories the weak-zone winners carry that the target does not
     missing_cats = []
     for l in leaders:
-        c = (l.get("category") or "").strip()
-        if c and c.lower() not in t_cats and c not in missing_cats:
-            missing_cats.append(c)
+        for c in l.get("categories", []):
+            c = (c or "").strip()
+            if c and c.lower() not in t_cats and c not in missing_cats:
+                missing_cats.append(c)
+
+    # profile attributes the leaders list that the target does not
+    missing_attrs = []
+    for l in leaders:
+        for a in l.get("available_attributes", []):
+            if a and a.lower() not in t_attrs and a not in missing_attrs:
+                missing_attrs.append(a)
 
     reviews_gap = None
     rating_gap = None
+    photo_gap = None
     if leader:
         reviews_gap = (leader.get("reviews") or 0) - t_reviews
         if t_rating is not None and leader.get("rating") is not None:
             rating_gap = round(leader["rating"] - t_rating, 1)
+        if t_photos is not None and leader.get("photos_count") is not None:
+            photo_gap = leader["photos_count"] - t_photos
 
     return {
         "leader": leader,
         "leaders": leaders,
         "reviews_gap": reviews_gap,
         "rating_gap": rating_gap,
+        "photo_gap": photo_gap,
         "missing_categories": missing_cats,
+        "missing_attributes": missing_attrs,
+        "target_has_description": target.get("has_description"),
+        "leader_has_description": bool(leader and leader.get("has_description")),
         "target_reviews": t_reviews,
         "target_rating": t_rating,
+        "target_photos": t_photos,
+        "target_claimed": target.get("claimed"),
     }
 
 
@@ -323,6 +368,7 @@ def load(con, store, scan_id):
         "visibility": scan["visibility"],
         "top3_pct": scan["top3_pct"],
         "found_pct": scan["found_pct"],
+        "dfs_cost": (scan["dfs_cost"] if "dfs_cost" in scan.keys() else 0.0) or 0.0,
     }
     pins = []
     for r in pin_rows:

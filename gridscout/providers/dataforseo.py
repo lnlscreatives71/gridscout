@@ -17,6 +17,26 @@ import urllib.request
 ENDPOINT = "https://api.dataforseo.com/v3/serp/google/maps/live/advanced"
 
 
+def _flatten_attrs(attributes, available: bool):
+    """Pull attribute names out of DataForSEO's attributes block.
+
+    The Maps result groups attributes under `available_attributes` and
+    `unavailable_attributes`, each a dict of category -> list of names. Flatten
+    to a plain list. Returns an empty list when the field is absent so the
+    findings layer can tell "none listed" from "not pulled".
+    """
+    if not isinstance(attributes, dict):
+        return []
+    key = "available_attributes" if available else "unavailable_attributes"
+    block = attributes.get(key) or {}
+    names = []
+    if isinstance(block, dict):
+        for group in block.values():
+            if isinstance(group, list):
+                names.extend(str(n) for n in group)
+    return names
+
+
 class DataForSEOProvider:
     name = "dataforseo"
 
@@ -30,6 +50,10 @@ class DataForSEOProvider:
             )
         token = base64.b64encode(f"{self.login}:{self.password}".encode()).decode()
         self.auth_header = f"Basic {token}"
+        # Running tally of what this scan actually cost, read straight from the
+        # API responses so the spend line at the end of a run is real, not an
+        # estimate. The scanner reads this after all pins are queried.
+        self.total_cost = 0.0
 
     def search(self, keyword: str, lat: float, lng: float, depth: int = 20):
         payload = [{
@@ -50,6 +74,12 @@ class DataForSEOProvider:
         with urllib.request.urlopen(req, timeout=60) as resp:
             data = json.loads(resp.read().decode())
 
+        # DataForSEO reports the exact cost of the call. Track it so spend is real.
+        try:
+            self.total_cost += float(data.get("cost") or 0.0)
+        except (TypeError, ValueError):
+            pass
+
         try:
             items = data["tasks"][0]["result"][0]["items"] or []
         except (KeyError, IndexError, TypeError):
@@ -61,6 +91,10 @@ class DataForSEOProvider:
             if it.get("type") != "maps_search":
                 continue
             rank += 1
+            # The Maps live endpoint carries some profile signal directly. Deeper
+            # fields (full attribute lists, photo counts) come from a Business Data
+            # profile pull, which is left as None here rather than guessed. The
+            # findings layer treats missing fields as unknown, never as zero.
             out.append({
                 "rank": rank,
                 "name": it.get("title"),
@@ -68,6 +102,12 @@ class DataForSEOProvider:
                 "rating": (it.get("rating") or {}).get("value"),
                 "reviews": (it.get("rating") or {}).get("votes_count"),
                 "category": it.get("category"),
+                "additional_categories": it.get("additional_categories") or [],
+                "photos_count": it.get("total_photos"),
+                "claimed": it.get("is_claimed"),
+                "description": it.get("snippet") or it.get("description"),
+                "available_attributes": _flatten_attrs(it.get("attributes"), True),
+                "unavailable_attributes": _flatten_attrs(it.get("attributes"), False),
             })
             if rank >= depth:
                 break

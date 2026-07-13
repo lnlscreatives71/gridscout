@@ -58,6 +58,8 @@ def run_scan(business: str, keyword: str, center_lat: float, center_lng: float,
         "visibility": vis,
         "top3_pct": round(top3 / n * 100, 1),
         "found_pct": round(len(found) / n * 100, 1),
+        # what the scan actually cost at the data vendor (0 for the mock)
+        "dfs_cost": round(float(getattr(provider, "total_cost", 0.0)), 4),
     }
     return meta, pins
 
