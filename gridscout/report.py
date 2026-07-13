@@ -163,9 +163,9 @@ def _svg_heatmap(meta, pins):
 
 
 def _legend():
-    rows = [("Rank 1 to 3", "#00e5ff"), ("Rank 4 to 7", "#6ee7b7"),
-            ("Rank 8 to 12", "#fbbf24"), ("Rank 13 to 20", "#fb7185"),
-            ("Not in top 20", "#3b4654")]
+    rows = [("Top 3 results", "#00e5ff"), ("4th to 7th", "#6ee7b7"),
+            ("8th to 12th", "#fbbf24"), ("13th to 20th", "#fb7185"),
+            ("Does not show up", "#3b4654")]
     items = "".join(
         f'<div class="leg"><span class="sw" style="background:{c}"></span>{t}</div>'
         for t, c in rows)
@@ -226,15 +226,18 @@ def build_html(findings, meta, pins, analysis_md, use_basemap=True):
     # self-contained schematic grid so the report still builds offline
     svg = (_static_map_svg(meta, pins) if use_basemap else None) \
         or _svg_heatmap(meta, pins)
+    reach = findings.get("reach") or {}
+    far = reach.get("farthest_you_appear_miles")
+    near = reach.get("closest_you_vanish_miles")
+    span = meta["radius_miles"] * 2
     cards = "".join(
         f'<div class="card"><div class="cn">{val}</div><div class="cl">{lbl}</div></div>'
         for val, lbl in [
-            (v["score"], "Visibility score"),
-            (v["avg_rank_where_found"] if v["avg_rank_where_found"] is not None
-             else "n/a", "Avg rank"),
-            (f'{v["pct_top3"]}%', "Pins in top 3"),
-            (f'{v["pct_visible"]}%', "Pins visible"),
-            (f'{v["pct_invisible"]}%', "Pins invisible"),
+            (f'{far} mi' if far is not None else "n/a", "Shows up out to"),
+            (f'{near} mi' if near is not None else "n/a", "Gone by (weak side)"),
+            (f'{v["pct_visible"]}%', "Area you show up in"),
+            (f'{v["pct_top3"]}%', "Area you are top 3"),
+            (v["score"], "Visibility score / 100"),
         ])
     biz = _html.escape(findings["business"])
     kw = _html.escape(findings["keyword"])
@@ -282,30 +285,30 @@ h4 {{ font-family:'Syne', system-ui, sans-serif; font-weight:700; font-size:12px
     <div class="muted" style="letter-spacing:.2em;text-transform:uppercase;font-size:11px">Local Map Visibility Report</div>
     <h1>{biz}</h1>
     <div class="kw">"{kw}"</div>
-    <div class="cover-score">{v['score']}<small> / 100 visibility</small></div>
-    <div class="muted" style="margin-top:18px">Visible at {v['pct_visible']}% of {findings['grid']['points']} scanned points. Invisible at {v['points_invisible']}.</div>
+    <div class="cover-score">{far if far is not None else '-'}<small> miles</small></div>
+    <div class="muted" style="margin-top:18px">That is how far from the shop {biz} shows up on Google Maps at best. In its weakest direction it is gone by about {near} mile. Everywhere past that edge, all of it, the people searching for {kw} are finding a competitor instead.</div>
   </div>
   <div class="cover-foot">
-    {meta['grid_size']}x{meta['grid_size']} grid over a {meta['radius_miles']} mile radius &middot; scanned {_html.escape(str(findings.get('scanned_at') or ''))}<br/>
+    We checked {findings['grid']['points']} places across about {span:.0f} miles around the business &middot; {_html.escape(str(findings.get('scanned_at') or ''))}<br/>
     Prepared by LNL AI Agency &middot; Where human vision meets machine precision
   </div>
 </div>
 
 <div class="page">
   <h2>The map</h2>
-  <div class="muted" style="margin:-8px 0 18px">Each point is the same search run from that spot. The number is where {biz} lands there. The purple ring is the business location.</div>
+  <div class="muted" style="margin:-8px 0 18px">Each dot is a place we checked near the business. The number is how high {biz} showed up there, so 1 is the very top. Gray means it did not show up at all, and everything past the gray edge is the same story. The purple ring is the business itself.</div>
   <div class="mapwrap">
     <div class="map">{svg}</div>
     {_legend()}
   </div>
   <div class="cards">{cards}</div>
-  <div class="foot">Rank is measured live from each coordinate. Not-found means the business did not appear in the top 20 at that point.</div>
+  <div class="foot">We ran the same Google Maps search from every dot. Gray means the business did not come up in the first twenty results there, so a customer standing at that spot would not see it. The whole area beyond the colored dots looks the same way.</div>
 </div>
 
 <div class="page">
   <h2>What the map says</h2>
   <div class="analysis">{analysis_html}</div>
-  <div class="foot">Prepared by LNL AI Agency. This report reflects a point-in-time scan. Re-scan monthly to track movement.</div>
+  <div class="foot">Prepared by LNL AI Agency. This is one moment in time. Re-check monthly to watch the edges move outward.</div>
 </div>
 
 </body></html>"""
