@@ -1,0 +1,6 @@
+# Core pipeline needs only the stdlib. These are the extras:
+anthropic          # analyze / report / content prose
+fastapi            # web UI (gridscout.webapp)
+uvicorn[standard]  # web server
+weasyprint         # PDF rendering. On macOS the Homebrew CLI is used instead;
+                   # this is for Linux/Docker where the module installs cleanly.
