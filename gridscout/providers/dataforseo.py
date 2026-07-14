@@ -12,6 +12,8 @@ If DataForSEO changes its schema, this is the only file that has to change.
 import base64
 import json
 import os
+import time
+import urllib.error
 import urllib.request
 
 ENDPOINT = "https://api.dataforseo.com/v3/serp/google/maps/live/advanced"
@@ -69,6 +71,39 @@ class DataForSEOProvider:
         # estimate. The scanner reads this after all pins are queried.
         self.total_cost = 0.0
 
+    def _post(self, url: str, body, timeout: int):
+        """POST with backoff retries.
+
+        DataForSEO answers request bursts with HTTP 402 (spend-rate limit, not
+        an empty balance) or drops the connection outright. Both clear after a
+        short wait, so back off and retry instead of killing a half-paid-for
+        scan. Anything else (bad credentials, malformed request) raises
+        immediately.
+        """
+        last = None
+        for wait in (0, 5, 15, 45):
+            if wait:
+                time.sleep(wait)
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(body).encode(),
+                headers={
+                    "Authorization": self.auth_header,
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    return json.loads(resp.read().decode())
+            except urllib.error.HTTPError as e:
+                if e.code not in (402, 429, 500, 502, 503, 504):
+                    raise
+                last = e
+            except (ConnectionResetError, TimeoutError, urllib.error.URLError) as e:
+                last = e
+        raise last or RuntimeError("DataForSEO retries exhausted")
+
     def search(self, keyword: str, lat: float, lng: float, depth: int = 20):
         payload = [{
             "keyword": keyword,
@@ -76,17 +111,7 @@ class DataForSEOProvider:
             "location_coordinate": f"{lat},{lng},15z",
             "depth": depth,
         }]
-        req = urllib.request.Request(
-            ENDPOINT,
-            data=json.dumps(payload).encode(),
-            headers={
-                "Authorization": self.auth_header,
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            data = json.loads(resp.read().decode())
+        data = self._post(ENDPOINT, payload, timeout=60)
 
         # DataForSEO reports the exact cost of the call. Track it so spend is real.
         try:
@@ -151,13 +176,8 @@ class DataForSEOProvider:
         elif not cid:
             return None
 
-        req = urllib.request.Request(
-            BUSINESS_INFO, data=json.dumps([body]).encode(),
-            headers={"Authorization": self.auth_header,
-                     "Content-Type": "application/json"}, method="POST")
         try:
-            with urllib.request.urlopen(req, timeout=90) as resp:
-                data = json.loads(resp.read().decode())
+            data = self._post(BUSINESS_INFO, [body], timeout=90)
         except Exception:
             return None
 
