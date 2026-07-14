@@ -14,6 +14,27 @@ The analyze, report, and content commands call the API and cost a few cents.
 
 ---
 
+## The web version, no terminal needed
+
+The same pipeline runs in a browser at https://gridscout.srv1244684.hstgr.cloud
+(user `lnl`, password in `/docker/gridscout/.env` on the VPS). Type the business,
+the keyword, and the street address. It geocodes the address for you, runs the
+scan, and lists every scan with links to the heatmap and PDF, plus a build-report
+button. Everything it makes lives in `/docker/gridscout/data/` on the VPS, which
+is the whole backup.
+
+To redeploy after code changes:
+
+```
+git archive main | ssh root@72.62.170.65 "tar -x -C /docker/gridscout/app"
+ssh root@72.62.170.65 "cd /docker/gridscout && docker compose up -d --build"
+```
+
+The CLI flow below still works exactly the same and shares nothing with the VPS:
+scans run on your Mac stay on your Mac unless you copy them over.
+
+---
+
 ## Once per terminal session
 
 Load your keys:
@@ -34,10 +55,31 @@ That is it until you close the terminal.
 Open Google Maps, right click the business's pin, and the first menu item is the
 coordinates. Click to copy. First number is the latitude, second is the longitude.
 
+Or skip this entirely: the web version takes the street address and geocodes it
+for you.
+
 ### 2. Pick the keyword their customers actually type
 
 Not their business name. What a customer searches: "hvac repair", "emergency
 plumber", "roof repair near me". One keyword per scan.
+
+One scan is not enough to email anyone. A single generic head term is a fragile
+foundation for a claim about someone's whole visibility: if you tell an owner
+they are invisible for "med spa" and they happen to rank first for their actual
+money service, the email is dead and so is the prospect. Before you write a
+word, scan three keywords:
+
+1. the category head term ("med spa", "hvac repair"),
+2. the big service everyone in that category gets searched for ("botox", "ac
+   repair"),
+3. their money service, read off their own homepage. The title tag and the H1
+   tell you what they think they sell.
+
+Three scans is about thirty cents. If they are weak across all three, the
+invisibility pitch is bulletproof, and the report for the money-service scan is
+usually the most damning one to send. If they own one term and vanish on the
+rest, that is a different and more honest pitch: you own X, you are invisible
+for everything adjacent, and that adjacency is the growth.
 
 ### 3. Scan them
 
