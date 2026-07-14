@@ -37,6 +37,24 @@ def run_scan(business: str, keyword: str, center_lat: float, center_lng: float,
 
     pins.sort(key=lambda p: (p["row"], p["col"]))
 
+    # Deep profile pull for the target: one Business Data call for the exact
+    # business (by its Google id), giving the real description, attributes, and
+    # services the maps search does not carry. Providers without it (the mock)
+    # are skipped and the profile is read from the pins instead.
+    target_profile = None
+    if hasattr(provider, "business_info"):
+        cid = place_id = None
+        for p in pins:
+            for r in p["results"]:
+                if _match(business, r.get("name", "")):
+                    cid, place_id = r.get("cid"), r.get("place_id")
+                    break
+            if cid or place_id:
+                break
+        if cid or place_id:
+            target_profile = provider.business_info(
+                cid=cid, keyword=business, lat=center_lat, lng=center_lng)
+
     found = [p["rank"] for p in pins if p["rank"] is not None]
     n = len(pins)
     avg_rank = round(sum(found) / len(found), 2) if found else None
@@ -60,6 +78,8 @@ def run_scan(business: str, keyword: str, center_lat: float, center_lng: float,
         "found_pct": round(len(found) / n * 100, 1),
         # what the scan actually cost at the data vendor (0 for the mock)
         "dfs_cost": round(float(getattr(provider, "total_cost", 0.0)), 4),
+        # deep profile from the Business Data pull, when available
+        "target_profile": target_profile,
     }
     return meta, pins
 

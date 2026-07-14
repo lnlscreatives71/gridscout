@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS scans (
     visibility REAL,
     top3_pct REAL,
     found_pct REAL,
-    dfs_cost REAL DEFAULT 0
+    dfs_cost REAL DEFAULT 0,
+    target_profile_json TEXT
 );
 CREATE TABLE IF NOT EXISTS pins (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,21 +67,24 @@ def _migrate(con):
     cols = {r["name"] for r in con.execute("PRAGMA table_info(scans)").fetchall()}
     if "dfs_cost" not in cols:
         con.execute("ALTER TABLE scans ADD COLUMN dfs_cost REAL DEFAULT 0")
-        con.commit()
+    if "target_profile_json" not in cols:
+        con.execute("ALTER TABLE scans ADD COLUMN target_profile_json TEXT")
+    con.commit()
 
 
 def save_scan(con, meta: dict, pins: list[dict]) -> int:
     cur = con.execute(
         """INSERT INTO scans (created_at, business, keyword, center_lat, center_lng,
            grid_size, radius_miles, provider, avg_rank, visibility, top3_pct,
-           found_pct, dfs_cost)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+           found_pct, dfs_cost, target_profile_json)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             datetime.now(timezone.utc).isoformat(timespec="seconds"),
             meta["business"], meta["keyword"], meta["center_lat"], meta["center_lng"],
             meta["grid_size"], meta["radius_miles"], meta["provider"],
             meta["avg_rank"], meta["visibility"], meta["top3_pct"], meta["found_pct"],
             meta.get("dfs_cost", 0.0),
+            json.dumps(meta["target_profile"]) if meta.get("target_profile") else None,
         ),
     )
     scan_id = cur.lastrowid

@@ -152,6 +152,30 @@ def compute(meta, pins):
     invisible = n - len(found)
 
     target = _target_profile(meta["business"], pins)
+    # if a Business Data deep profile was pulled for the target, it wins: it has
+    # the real description, attributes, and services the maps search lacks
+    deep = meta.get("target_profile")
+    if deep:
+        cats = ([deep["category"]] if deep.get("category") else []) \
+            + (deep.get("additional_categories") or [])
+        target.update({
+            "rating": deep.get("rating") or target.get("rating"),
+            "reviews": deep.get("reviews") or target.get("reviews"),
+            "photos_count": (deep["photos_count"]
+                             if deep.get("photos_count") is not None
+                             else target.get("photos_count")),
+            "claimed": (deep["claimed"] if deep.get("claimed") is not None
+                        else target.get("claimed")),
+            "description": deep.get("description") or target.get("description"),
+            "has_description": bool(deep.get("description")),
+            "available_attributes": (deep.get("available_attributes")
+                                     or target.get("available_attributes")),
+            "unavailable_attributes": (deep.get("unavailable_attributes")
+                                       or target.get("unavailable_attributes")),
+            "categories": cats or target.get("categories"),
+            "services": deep.get("services") or [],
+        })
+
     competitors = _competitor_table(pins)
     comp_by_name = {c["name"]: c for c in competitors}
 
@@ -369,6 +393,10 @@ def load(con, store, scan_id):
         "top3_pct": scan["top3_pct"],
         "found_pct": scan["found_pct"],
         "dfs_cost": (scan["dfs_cost"] if "dfs_cost" in scan.keys() else 0.0) or 0.0,
+        "target_profile": (
+            json.loads(scan["target_profile_json"])
+            if "target_profile_json" in scan.keys() and scan["target_profile_json"]
+            else None),
     }
     pins = []
     for r in pin_rows:
