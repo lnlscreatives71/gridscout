@@ -297,6 +297,24 @@ def build_html(findings, meta, pins, analysis_md, labels=None, use_basemap=True)
     kw = _html.escape(findings["keyword"])
     analysis_html = _md_to_html(analysis_md)
 
+    # The cover leads with whichever number is the real story. "Shows up out to
+    # N miles" is honest when the business genuinely shows up around its shop;
+    # for a business missing from most of the area it softens a presence
+    # problem into geography, so those covers lead with the missing places.
+    center = min(pins, key=lambda p: p["dist_miles"])
+    gone_at_own_door = center["rank"] is None or center["rank"] > 3
+    if v["pct_visible"] < 25 or (v["pct_top3"] == 0 and v["pct_visible"] < 50):
+        n = findings["grid"]["points"]
+        never_top3 = (
+            " It was never one of the first three results anywhere we checked"
+            + (", not even standing at its own front door." if gone_at_own_door
+               else ".")) if v["pct_top3"] == 0 else ""
+        cover_hero = f"""<div class="cover-score">{v['points_invisible']} of {n}<small> places</small></div>
+    <div class="muted" style="margin-top:18px">We checked {n} places around the shop. In {v['points_invisible']} of them, {biz} does not show up on Google Maps at all when people search for {kw}.{never_top3} Every one of those searches ends at a competitor instead.</div>"""
+    else:
+        cover_hero = f"""<div class="cover-score">{far if far is not None else '-'}<small> miles</small></div>
+    <div class="muted" style="margin-top:18px">That is how far from the shop {biz} shows up on Google Maps at best. In its weakest direction it is gone by about {near} mile. Everywhere past that edge, all of it, the people searching for {kw} are finding a competitor instead.</div>"""
+
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8"/>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Syne:wght@600;800&display=swap');
@@ -353,8 +371,7 @@ h4 {{ font-family:'Syne', system-ui, sans-serif; font-weight:700; font-size:12px
     <div class="muted" style="letter-spacing:.2em;text-transform:uppercase;font-size:11px">Local Map Visibility Report</div>
     <h1>{biz}</h1>
     <div class="kw">"{kw}"</div>
-    <div class="cover-score">{far if far is not None else '-'}<small> miles</small></div>
-    <div class="muted" style="margin-top:18px">That is how far from the shop {biz} shows up on Google Maps at best. In its weakest direction it is gone by about {near} mile. Everywhere past that edge, all of it, the people searching for {kw} are finding a competitor instead.</div>
+    {cover_hero}
   </div>
   <div class="cover-foot">
     We checked {findings['grid']['points']} places across about {span:.0f} miles around the business &middot; {_html.escape(str(findings.get('scanned_at') or ''))}<br/>
