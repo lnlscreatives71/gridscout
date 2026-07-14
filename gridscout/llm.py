@@ -60,6 +60,13 @@ Hard rules, no exceptions:
    problem. "You show up out to 2 miles toward the west" is a burying of the lede when
    the truth is "you almost never show up at all". Frame either story in customers
    and jobs, not metrics.
+   And when the business never reaches the top three anywhere in the findings, the
+   bottom line must say that as one blunt fact, not a soft paraphrase like "buried
+   out of sight": never in the top three at any of the places checked, including
+   right outside their own front door (only if the findings show that), and roughly
+   where they sit on the list where they do appear. That sentence kills the one
+   comfortable assumption every owner has, that they are at least fine right around
+   their own shop. Do not leave it out and do not spread it across three paragraphs.
 3b. Attribute wins to what each winner actually has. Before you say a named competitor
    is beating them because of photos, reviews, a description, or anything else, check
    that competitor's own numbers in the findings. Only cite an advantage that this
